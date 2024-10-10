@@ -237,7 +237,9 @@ std::vector<rpc::ObjectReference> TaskManager::AddPendingTask(
   // Add new owned objects for the return values of the task.
   size_t num_returns = spec.NumReturns();
   std::vector<rpc::ObjectReference> returned_refs;
+  returned_refs.reserve(num_returns);
   std::vector<ObjectID> return_ids;
+  return_ids.reserve(num_returns);
   for (size_t i = 0; i < num_returns; i++) {
     auto return_id = spec.ReturnId(i);
     if (!spec.IsActorCreationTask()) {
@@ -260,7 +262,7 @@ std::vector<rpc::ObjectReference> TaskManager::AddPendingTask(
                                          /*add_local_ref=*/true);
     }
 
-    return_ids.push_back(return_id);
+    return_ids.push_back(std::move(return_id));
     rpc::ObjectReference ref;
     ref.set_object_id(spec.ReturnId(i).Binary());
     ref.mutable_owner_address()->CopyFrom(caller_address);

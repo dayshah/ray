@@ -18,6 +18,7 @@
 #include <regex>
 #include <thread>
 #include <utility>
+#include <cmath>
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/strings/match.h"
@@ -48,12 +49,16 @@ std::vector<RedisCommand> GenCommandsBatched(const std::string &command,
                                              const RedisKey &redis_key,
                                              const std::vector<std::string> &args) {
   std::vector<RedisCommand> batched_requests;
-  for (auto &arg : args) {
-    // If it's empty or the last batch is full, add a new batch.
-    if (batched_requests.empty() ||
+  args.reserve(std::floor(args.size() / RayConfig::instance().maximum_gcs_storage_operation_batch_size()) + 1);
+  for (const auto &arg : args) {
+    if (batched_requests.empty() ||    // If it's empty or the last batch is full, add a new batch.
+
         batched_requests.back().args.size() >=
             RayConfig::instance().maximum_gcs_storage_operation_batch_size()) {
       batched_requests.emplace_back(RedisCommand{command, redis_key, {}});
+      batched_requests.back().args.reserve(std::min(
+        RayConfig::instance().maximum_gcs_storage_operation_batch_size(),
+        args.size()));
     }
     batched_requests.back().args.push_back(arg);
   }
@@ -81,18 +86,17 @@ void RedisStoreClient::MGetValues(const std::string &table_name,
   auto finished_count = std::make_shared<size_t>(0);
   auto key_value_map = std::make_shared<absl::flat_hash_map<std::string, std::string>>();
 
-  for (auto &command : batched_commands) {
+  for (auto &&command : bsl::move(batched_commands)) {
     auto mget_callback = [finished_count,
                           total_count,
-                          // Copies!
-                          args = command.args,
+                          command = std::move(command),
                           callback,
                           key_value_map](const std::shared_ptr<CallbackReply> &reply) {
       if (!reply->IsNil()) {
         auto value = reply->ReadAsStringArray();
         for (size_t index = 0; index < value.size(); ++index) {
           if (value[index].has_value()) {
-            (*key_value_map)[args[index]] = *(value[index]);
+            (*key_value_map)[command.args[index]] = *(value[index]);
           }
         }
       }
@@ -247,8 +251,7 @@ std::vector<std::function<void()>> RedisStoreClient::TakeRequestsFromSendingQueu
 
 void RedisStoreClient::SendRedisCmdArgsAsKeys(RedisCommand command,
                                               RedisCallback redis_callback) {
-  auto copied = command.args;
-  SendRedisCmdWithKeys(std::move(copied), std::move(command), std::move(redis_callback));
+  SendRedisCmdWithKeys(std::move(command.args), std::move(command), std::move(redis_callback));
 }
 
 void RedisStoreClient::SendRedisCmdWithKeys(std::vector<std::string> keys,

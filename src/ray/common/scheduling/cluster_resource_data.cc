@@ -25,7 +25,7 @@ ResourceRequest ResourceMapToResourceRequest(
     const absl::flat_hash_map<std::string, double> &resource_map,
     bool requires_object_store_memory) {
   ResourceRequest res({}, requires_object_store_memory);
-  for (auto entry : resource_map) {
+  for (const auto &entry : resource_map) {
     res.Set(ResourceID(entry.first), FixedPoint(entry.second));
   }
   return res;
@@ -36,7 +36,7 @@ ResourceRequest ResourceMapToResourceRequest(
     const absl::flat_hash_map<ResourceID, double> &resource_map,
     bool requires_object_store_memory) {
   ResourceRequest res({}, requires_object_store_memory);
-  for (auto entry : resource_map) {
+  for (const auto& entry : resource_map) {
     res.Set(entry.first, FixedPoint(entry.second));
   }
   return res;

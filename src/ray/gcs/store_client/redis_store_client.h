@@ -32,18 +32,18 @@ namespace gcs {
 
 // Typed key to avoid forgetting to prepend external_storage_namespace.
 struct RedisKey {
-  const std::string external_storage_namespace;
-  const std::string table_name;
+  std::string external_storage_namespace;
+  std::string table_name;
   std::string ToString() const;
 };
-
+ 
 struct RedisMatchPattern {
   static RedisMatchPattern Prefix(const std::string &prefix);
   static RedisMatchPattern Any() {
     static const RedisMatchPattern kAny("*");
     return kAny;
   }
-  const std::string escaped;
+  std::string escaped;
 
  private:
   explicit RedisMatchPattern(std::string escaped) : escaped(std::move(escaped)) {}

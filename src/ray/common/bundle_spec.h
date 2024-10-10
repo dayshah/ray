@@ -30,7 +30,7 @@ namespace ray {
 
 /// Arguments are the raylet ID to spill back to, the raylet's
 /// address and the raylet's port.
-typedef std::function<void()> SpillbackBundleCallback;
+using SpillbackBundleCallback = std::function<void ()>;
 
 const std::string kGroupKeyword = "_group_";
 const size_t kGroupKeywordSize = kGroupKeyword.size();

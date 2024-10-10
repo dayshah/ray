@@ -61,6 +61,7 @@ Checks: >
   readability-static-definition-in-anonymous-namespace,
   readability-string-compare,
   readability-suspicious-call-argument,
+  cppcoreguidelines-avoid-const-or-ref-data-members,
 
 CheckOptions:
   # Reduce noisiness of the bugprone-narrowing-conversions check.

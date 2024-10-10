@@ -40,11 +40,11 @@ class ResourceRequest {
 
   /// Construct a ResourceRequest with a given resource map.
   ResourceRequest(absl::flat_hash_map<ResourceID, FixedPoint> resource_map)
-      : ResourceRequest(resource_map, false){};
+      : ResourceRequest(std::move(resource_map), false){};
 
   ResourceRequest(absl::flat_hash_map<ResourceID, FixedPoint> resource_map,
                   bool requires_object_store_memory)
-      : resources_(resource_map),
+      : resources_(std::move(resource_map)),
         requires_object_store_memory_(requires_object_store_memory) {}
 
   bool RequiresObjectStoreMemory() const { return requires_object_store_memory_; }

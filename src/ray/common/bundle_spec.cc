@@ -17,6 +17,7 @@
 namespace ray {
 
 void BundleSpecification::ComputeResources() {
+  // can be reworked
   auto unit_resource = MapFromProtobuf(message_->unit_resources());
 
   if (unit_resource.empty()) {

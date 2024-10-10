@@ -443,7 +443,7 @@ void ReferenceCounter::RemoveLocalReferenceInternal(const ObjectID &object_id,
 }
 
 void ReferenceCounter::UpdateSubmittedTaskReferences(
-    const std::vector<ObjectID> return_ids,
+    const std::vector<ObjectID> &return_ids,
     const std::vector<ObjectID> &argument_ids_to_add,
     const std::vector<ObjectID> &argument_ids_to_remove,
     std::vector<ObjectID> *deleted) {
@@ -1274,7 +1274,7 @@ void ReferenceCounter::SetRefRemovedCallback(
     const ObjectID &object_id,
     const ObjectID &contained_in_id,
     const rpc::Address &owner_address,
-    const ReferenceCounter::ReferenceRemovedCallback &ref_removed_callback) {
+    ReferenceCounter::ReferenceRemovedCallback &&ref_removed_callback) {
   absl::MutexLock lock(&mutex_);
   RAY_LOG(DEBUG).WithField(object_id)
       << "Received WaitForRefRemoved object contained in " << contained_in_id;
@@ -1312,7 +1312,7 @@ void ReferenceCounter::SetRefRemovedCallback(
           << "on_ref_removed already set for object. The owner task must have died and "
              "been re-executed.";
     }
-    it->second.on_ref_removed = ref_removed_callback;
+    it->second.on_ref_removed = std::move(ref_removed_callback);
   }
 }
 

@@ -82,6 +82,7 @@ void StoreClientInternalKV::MultiGet(
   RAY_CHECK_OK(delegate_->AsyncMultiGet(
       table_name_, prefixed_keys, [callback = std::move(callback)](auto result) {
         std::unordered_map<std::string, std::string> ret;
+        ret.reserve(result.size());
         for (const auto &item : result) {
           ret.emplace(ExtractKey(item.first), item.second);
         }

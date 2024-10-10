@@ -651,12 +651,13 @@ void GcsPlacementGroupScheduler::AcquireBundleResources(
 absl::flat_hash_map<scheduling::NodeID, ResourceRequest> ToNodeBundleResourcesMap(
     const std::shared_ptr<BundleLocations> &bundle_locations) {
   absl::flat_hash_map<scheduling::NodeID, ResourceRequest> node_bundle_resources_map;
+  node_bundle_resources_map.reserve(bundle_locations->size());
   for (const auto &bundle : *bundle_locations) {
     auto node_id = scheduling::NodeID(bundle.second.first.Binary());
     const auto &bundle_spec = *bundle.second.second;
     auto bundle_resource_request = ResourceMapToResourceRequest(
         bundle_spec.GetFormattedResources(), /*requires_object_store_memory=*/false);
-    node_bundle_resources_map[node_id] += bundle_resource_request;
+    node_bundle_resources_map[node_id] = std::move(bundle_resource_request);
   }
   return node_bundle_resources_map;
 }

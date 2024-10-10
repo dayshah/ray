@@ -33,16 +33,15 @@ std::string MakeKey(const std::string &ns, const std::string &key) {
   return absl::StrCat(kNamespacePrefix, ns, kNamespaceSep, key);
 }
 
-std::string ExtractKey(const std::string &key) {
-  auto view = std::string_view(key);
-  if (absl::StartsWith(view, kNamespacePrefix)) {
+std::string ExtractKey(std::string &&key) {
+  if (absl::StartsWith(key, kNamespacePrefix)) {
     std::vector<std::string> parts =
         absl::StrSplit(key, absl::MaxSplits(kNamespaceSep, 1));
     RAY_CHECK(parts.size() == 2) << "Invalid key: " << key;
 
     return parts[1];
   }
-  return std::string(view.begin(), view.end());
+  return std::move(key);
 }
 
 }  // namespace
@@ -82,8 +81,9 @@ void StoreClientInternalKV::MultiGet(
   RAY_CHECK_OK(delegate_->AsyncMultiGet(
       table_name_, prefixed_keys, [callback = std::move(callback)](auto result) {
         std::unordered_map<std::string, std::string> ret;
-        for (const auto &item : result) {
-          ret.emplace(ExtractKey(item.first), item.second);
+        ret.reserve(result.size());
+        for (std::pair<std::string, std::string> &&iter : std::move(result)) {
+          ret.emplace(ExtractKey(std::move(iter.first)), std::move(iter.second));
         }
         callback(std::move(ret));
       }));
@@ -151,8 +151,8 @@ void StoreClientInternalKV::Keys(const std::string &ns,
       [callback = std::move(callback)](std::vector<std::string> keys) {
         std::vector<std::string> true_keys;
         true_keys.reserve(keys.size());
-        for (auto &key : keys) {
-          true_keys.emplace_back(ExtractKey(key));
+        for (auto &&key : std::move(keys)) {
+          true_keys.emplace_back(ExtractKey(std::move(key)));
         }
         callback(std::move(true_keys));
       }));

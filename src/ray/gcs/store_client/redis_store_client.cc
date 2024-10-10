@@ -48,14 +48,18 @@ std::vector<RedisCommand> GenCommandsBatched(const std::string &command,
                                              const RedisKey &redis_key,
                                              const std::vector<std::string> &args) {
   std::vector<RedisCommand> batched_requests;
-  for (auto &arg : args) {
+  const auto max_batch_size =
+      RayConfig::instance().maximum_gcs_storage_operation_batch_size();
+  batched_requests.reserve(std::ceil(args.size() / max_batch_size));
+  for (size_t idx = 0; idx < args.size(); ++idx) {
     // If it's empty or the last batch is full, add a new batch.
     if (batched_requests.empty() ||
-        batched_requests.back().args.size() >=
-            RayConfig::instance().maximum_gcs_storage_operation_batch_size()) {
-      batched_requests.emplace_back(RedisCommand{command, redis_key, {}});
+        batched_requests.back().args.size() >= max_batch_size) {
+      batched_requests.emplace_back(command, redis_key, std::vector<std::string>{});
+      batched_requests.back().args.reserve(
+          std::min(args.size() - idx, static_cast<size_t>(max_batch_size)));
     }
-    batched_requests.back().args.push_back(arg);
+    batched_requests.back().args.push_back(args[idx]);
   }
   return batched_requests;
 }
@@ -221,7 +225,7 @@ size_t RedisStoreClient::PushToSendingQueue(const std::vector<RedisConcurrencyKe
       // this queue.
       op_iter->second.push(nullptr);
     } else {
-      op_iter->second.push(send_request);
+      op_iter->second.push(std::move(send_request));
     }
   }
   return queue_added;

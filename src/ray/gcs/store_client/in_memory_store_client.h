@@ -88,7 +88,7 @@ class InMemoryStoreClient : public StoreClient {
   /// of the callback.
   instrumented_io_context &main_io_service_;
 
-  int job_id_ = 0;
+  std::atomic<int> job_id_ = 0;
 };
 
 }  // namespace gcs

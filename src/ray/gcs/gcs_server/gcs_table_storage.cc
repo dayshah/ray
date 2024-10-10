@@ -167,6 +167,7 @@ template <typename Key, typename Data>
 Status GcsTableWithJobId<Key, Data>::BatchDelete(const std::vector<Key> &keys,
                                                  const StatusCallback &callback) {
   std::vector<std::string> keys_to_delete;
+  keys_to_delete.reserve(keys.size());
   for (auto key : keys) {
     keys_to_delete.push_back(key.Binary());
   }

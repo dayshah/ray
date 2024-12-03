@@ -28,6 +28,8 @@ namespace gcs {
 class StoreClientInternalKV : public InternalKVInterface {
  public:
   explicit StoreClientInternalKV(std::unique_ptr<StoreClient> store_client);
+  StoreClientInternalKV(const StoreClientInternalKV &) = delete;
+  StoreClientInternalKV &operator=(const StoreClientInternalKV &) = delete;
 
   void Get(const std::string &ns,
            const std::string &key,

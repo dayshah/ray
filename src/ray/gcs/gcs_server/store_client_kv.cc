@@ -34,7 +34,7 @@ std::string MakeKey(const std::string &ns, const std::string &key) {
 }
 
 std::string ExtractKey(const std::string &key) {
-  auto view = std::string_view(key);
+  std::string_view view = key;
   if (absl::StartsWith(view, kNamespacePrefix)) {
     std::vector<std::string> parts =
         absl::StrSplit(key, absl::MaxSplits(kNamespaceSep, 1));
@@ -42,7 +42,7 @@ std::string ExtractKey(const std::string &key) {
 
     return parts[1];
   }
-  return std::string(view.begin(), view.end());
+  return std::string{view};
 }
 
 }  // namespace
@@ -82,8 +82,9 @@ void StoreClientInternalKV::MultiGet(
   RAY_CHECK_OK(delegate_->AsyncMultiGet(
       table_name_, prefixed_keys, [callback = std::move(callback)](auto result) {
         std::unordered_map<std::string, std::string> ret;
-        for (const auto &item : result) {
-          ret.emplace(ExtractKey(item.first), item.second);
+        ret.reserve(result.size());
+        for (auto &&item : std::move(result)) {
+          ret.emplace(ExtractKey(item.first), std::move(item.second));
         }
         callback(std::move(ret));
       }));
@@ -148,7 +149,7 @@ void StoreClientInternalKV::Keys(const std::string &ns,
   RAY_CHECK_OK(delegate_->AsyncGetKeys(
       table_name_,
       MakeKey(ns, prefix),
-      [callback = std::move(callback)](std::vector<std::string> keys) {
+      [callback = std::move(callback)](const std::vector<std::string> &keys) {
         std::vector<std::string> true_keys;
         true_keys.reserve(keys.size());
         for (auto &key : keys) {

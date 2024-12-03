@@ -14,6 +14,8 @@
 
 #include "ray/gcs/store_client/in_memory_store_client.h"
 
+#include "absl/strings/match.h"
+
 namespace ray::gcs {
 
 Status InMemoryStoreClient::AsyncPut(const std::string &table_name,
@@ -65,11 +67,10 @@ Status InMemoryStoreClient::AsyncGetAll(
     const std::string &table_name,
     const MapCallback<std::string, std::string> &callback) {
   RAY_CHECK(callback);
-  auto result = absl::flat_hash_map<std::string, std::string>();
+  // auto result = absl::flat_hash_map<std::string, std::string>();
   auto table = GetOrCreateTable(table_name);
   absl::MutexLock lock(&(table->mutex_));
-  result.reserve(table->records_.size());
-  result.insert(table->records_.begin(), table->records_.end());
+  auto result = table->records_;
   main_io_service_.post(
       [result = std::move(result), callback]() mutable { callback(std::move(result)); },
       "GcsInMemoryStore.GetAll");
@@ -127,21 +128,19 @@ Status InMemoryStoreClient::AsyncBatchDelete(const std::string &table_name,
 }
 
 int InMemoryStoreClient::GetNextJobID() {
-  absl::MutexLock lock(&mutex_);
-  job_id_ += 1;
-  return job_id_;
+  // could this be relaxed?
+  return job_id_.fetch_add(1, std::memory_order_acq_rel);
 }
 
 std::shared_ptr<InMemoryStoreClient::InMemoryTable> InMemoryStoreClient::GetOrCreateTable(
     const std::string &table_name) {
-  absl::MutexLock lock(&mutex_);
   auto iter = tables_.find(table_name);
   if (iter != tables_.end()) {
     return iter->second;
   }
-  auto table = std::make_shared<InMemoryTable>();
-  tables_[table_name] = table;
-  return table;
+  auto [new_iter, success] =
+      tables_.emplace(table_name, std::make_shared<InMemoryTable>());
+  return new_iter->second;
 }
 
 Status InMemoryStoreClient::AsyncGetKeys(
@@ -153,7 +152,7 @@ Status InMemoryStoreClient::AsyncGetKeys(
   auto table = GetOrCreateTable(table_name);
   absl::MutexLock lock(&(table->mutex_));
   for (const auto &[key, _] : table->records_) {
-    if (key.find(prefix) == 0) {
+    if (absl::StartsWith(key, prefix)) {
       result.emplace_back(key);
     }
   }

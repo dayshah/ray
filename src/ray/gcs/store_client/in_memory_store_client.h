@@ -79,19 +79,17 @@ class InMemoryStoreClient : public StoreClient {
   };
 
   std::shared_ptr<InMemoryStoreClient::InMemoryTable> GetOrCreateTable(
-      const std::string &table_name) ABSL_LOCKS_EXCLUDED(mutex_);
+      const std::string &table_name);
 
-  /// Mutex to protect the tables_ field.
-  absl::Mutex mutex_;
-  absl::flat_hash_map<std::string, std::shared_ptr<InMemoryTable>> tables_
-      ABSL_GUARDED_BY(mutex_);
+  // update to be boost_concurrent_flat_map with updated boost version
+  absl::flat_hash_map<std::string, std::shared_ptr<InMemoryTable>> tables_;
 
   /// Async API Callback needs to post to main_io_service_ to ensure the orderly execution
   /// of the callback.
   instrumented_io_context &main_io_service_;
 
   /// Current job id, auto-increment when request next-id.
-  int job_id_ ABSL_GUARDED_BY(mutex_) = 0;
+  std::atomic<int> job_id_ = 0;
 };
 
 }  // namespace ray::gcs

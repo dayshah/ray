@@ -283,24 +283,26 @@ def parse_and_validate_container(container: List[str]) -> List[str]:
     return container
 
 
-def parse_and_validate_excludes(excludes: List[str]) -> List[str]:
-    """Parses and validates a user-provided 'excludes' option.
+def parse_and_validate_includes_excludes(includes_excludes: List[str]) -> List[str]:
+    """Parses and validates a user-provided 'includes' or 'excludes' option.
 
     This is validated to verify that it is of type List[str].
 
     If an empty list is passed, we return `None` for consistency.
     """
-    assert excludes is not None
+    assert includes_excludes is not None
 
-    if isinstance(excludes, list) and len(excludes) == 0:
+    if isinstance(includes_excludes, list) and len(includes_excludes) == 0:
         return None
 
-    if isinstance(excludes, list) and all(isinstance(path, str) for path in excludes):
-        return excludes
+    if isinstance(includes_excludes, list) and all(
+        isinstance(path, str) for path in includes_excludes
+    ):
+        return includes_excludes
     else:
         raise TypeError(
-            "runtime_env['excludes'] must be of type "
-            f"List[str], got {type(excludes)}"
+            "runtime_env['includes/excludes'] must be of type "
+            f"List[str], got {type(includes_excludes)}"
         )
 
 
@@ -352,7 +354,8 @@ def parse_and_validate_env_vars(env_vars: Dict[str, str]) -> Optional[Dict[str, 
 OPTION_TO_VALIDATION_FN = {
     "py_modules": parse_and_validate_py_modules,
     "working_dir": parse_and_validate_working_dir,
-    "excludes": parse_and_validate_excludes,
+    "includes": parse_and_validate_includes_excludes,
+    "excludes": parse_and_validate_includes_excludes,
     "conda": parse_and_validate_conda,
     "pip": parse_and_validate_pip,
     "uv": parse_and_validate_uv,

@@ -284,6 +284,7 @@ class RuntimeEnv(dict):
         "pip",
         "uv",
         "container",
+        "includes",
         "excludes",
         "env_vars",
         "_ray_release",

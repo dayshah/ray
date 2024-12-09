@@ -60,9 +60,12 @@ def upload_working_dir_if_needed(
             raise ValueError("Only .zip files supported for remote URIs.")
         return runtime_env
 
+    includes = runtime_env.get("includes", None)
     excludes = runtime_env.get("excludes", None)
     try:
-        working_dir_uri = get_uri_for_directory(working_dir, excludes=excludes)
+        working_dir_uri = get_uri_for_directory(
+            working_dir, includes=includes, excludes=excludes
+        )
     except ValueError:  # working_dir is not a directory
         package_path = Path(working_dir)
         if not package_path.exists() or package_path.suffix != ".zip":
@@ -87,6 +90,7 @@ def upload_working_dir_if_needed(
                 scratch_dir,
                 working_dir,
                 include_parent_dir=False,
+                includes=includes,
                 excludes=excludes,
                 logger=logger,
             )
@@ -95,7 +99,7 @@ def upload_working_dir_if_needed(
                 f"Failed to upload working_dir {working_dir} to the Ray cluster: {e}"
             ) from e
     else:
-        upload_fn(working_dir, excludes=excludes)
+        upload_fn(working_dir, includes=includes, excludes=excludes)
 
     runtime_env["working_dir"] = working_dir_uri
     return runtime_env

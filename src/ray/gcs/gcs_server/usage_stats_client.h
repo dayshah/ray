@@ -14,8 +14,6 @@
 
 #pragma once
 
-#include <memory>
-
 #include "ray/gcs/gcs_server/gcs_kv_manager.h"
 #include "src/ray/protobuf/usage.pb.h"
 
@@ -23,8 +21,7 @@ namespace ray {
 namespace gcs {
 class UsageStatsClient {
  public:
-  explicit UsageStatsClient(ray::gcs::InternalKVInterface &internal_kv);
-
+  explicit UsageStatsClient(GcsInternalKVManager &kv_manager_);
   /// C++ version of record_extra_usage_tag in usage_lib.py
   ///
   /// \param key The tag key which MUST be a registered TagKey in usage_lib.py.
@@ -36,10 +33,10 @@ class UsageStatsClient {
 
  private:
   /// Kee in-sync with the same constants defined in usage_constants.py
-  static constexpr char kExtraUsageTagPrefix[] = "extra_usage_tag_";
-  static constexpr char kUsageStatsNamespace[] = "usage_stats";
+  static constexpr std::string_view kExtraUsageTagPrefix = "extra_usage_tag_";
+  static constexpr std::string_view kUsageStatsNamespace = "usage_stats";
 
-  ray::gcs::InternalKVInterface &internal_kv_;
+  GcsInternalKVManager &kv_manager_;
 };
 }  // namespace gcs
 }  // namespace ray

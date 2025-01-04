@@ -26,7 +26,6 @@
 #include "ray/gcs/gcs_server/gcs_placement_group_manager.h"
 #include "ray/gcs/gcs_server/gcs_resource_manager.h"
 #include "ray/gcs/gcs_server/gcs_worker_manager.h"
-#include "ray/gcs/gcs_server/store_client_kv.h"
 #include "ray/pubsub/publisher.h"
 #include "ray/util/util.h"
 
@@ -144,7 +143,7 @@ void GcsServer::Start() {
 void GcsServer::GetOrGenerateClusterId(
     Postable<void(ClusterID cluster_id)> continuation) {
   static std::string const kTokenNamespace = "cluster";
-  kv_manager_->GetInstance().Get(
+  kv_manager_.Get(
       kTokenNamespace,
       kClusterIdKey,
       [this, continuation = std::move(continuation)](
@@ -153,7 +152,7 @@ void GcsServer::GetOrGenerateClusterId(
           ClusterID cluster_id = ClusterID::FromRandom();
           RAY_LOG(INFO) << "No existing server cluster ID found. Generating new ID: "
                         << cluster_id.Hex();
-          kv_manager_->GetInstance().Put(
+          kv_manager_.Put(
               kTokenNamespace,
               kClusterIdKey,
               cluster_id.Binary(),
@@ -549,11 +548,11 @@ void GcsServer::InitRaySyncer(const GcsInitData &gcs_init_data) {
 }
 
 void GcsServer::InitFunctionManager() {
-  function_manager_ = std::make_unique<GcsFunctionManager>(kv_manager_->GetInstance());
+  function_manager_ = std::make_unique<GcsFunctionManager>(*kv_manager_);
 }
 
 void GcsServer::InitUsageStatsClient() {
-  usage_stats_client_ = std::make_unique<UsageStatsClient>(kv_manager_->GetInstance());
+  usage_stats_client_ = std::make_unique<UsageStatsClient>(*kv_manager_);
 
   gcs_worker_manager_->SetUsageStatsClient(usage_stats_client_.get());
   gcs_actor_manager_->SetUsageStatsClient(usage_stats_client_.get());
@@ -563,24 +562,22 @@ void GcsServer::InitUsageStatsClient() {
 
 void GcsServer::InitKVManager() {
   // TODO (yic): Use a factory with configs
-  std::unique_ptr<InternalKVInterface> instance;
+  std::unique_ptr<StoreClient> instance;
   auto &io_context = io_context_provider_.GetIOContext<GcsInternalKVManager>();
   switch (storage_type_) {
   case (StorageType::REDIS_PERSIST):
-    instance = std::make_unique<StoreClientInternalKV>(
-        std::make_unique<RedisStoreClient>(CreateRedisClient(io_context)), io_context);
+    instance = std::make_unique<RedisStoreClient>(CreateRedisClient(io_context));
     break;
   case (StorageType::IN_MEMORY):
-    instance = std::make_unique<StoreClientInternalKV>(
-        std::make_unique<ObservableStoreClient>(std::make_unique<InMemoryStoreClient>()),
-        io_context);
+    instance =
+        std::make_unique<ObservableStoreClient>(std::make_unique<InMemoryStoreClient>());
     break;
   default:
     RAY_LOG(FATAL) << "Unexpected storage type! " << storage_type_;
   }
 
-  kv_manager_ = std::make_unique<GcsInternalKVManager>(std::move(instance),
-                                                       config_.raylet_config_list);
+  kv_manager_ = std::make_unique<GcsInternalKVManager>(
+      std::move(instance), io_context, config_.raylet_config_list);
 }
 
 void GcsServer::InitKVService() {

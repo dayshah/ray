@@ -22,7 +22,6 @@
 #include "mock/ray/pubsub/publisher.h"
 #include "src/ray/protobuf/gcs.pb.h"
 #include "src/ray/protobuf/common.pb.h"
-#include "ray/gcs/gcs_server/store_client_kv.h"
 // clang-format on
 using namespace ::testing;
 using namespace ray::gcs;

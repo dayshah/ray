@@ -29,7 +29,8 @@ namespace gcs {
 ///    - function/actor code life cycle management.
 class GcsFunctionManager {
  public:
-  explicit GcsFunctionManager(InternalKVInterface &kv) : kv_(kv) {}
+  explicit GcsFunctionManager(GcsInternalKVManager &kv_manager)
+      : kv_manager_(kv_manager) {}
 
   void AddJobReference(const JobID &job_id) { job_counter_[job_id]++; }
 
@@ -46,16 +47,16 @@ class GcsFunctionManager {
  private:
   void RemoveExportedFunctions(const JobID &job_id) {
     auto job_id_hex = job_id.Hex();
-    kv_.Del("fun", "RemoteFunction:" + job_id_hex + ":", true, nullptr);
-    kv_.Del("fun", "ActorClass:" + job_id_hex + ":", true, nullptr);
-    kv_.Del("fun",
-            std::string(kWorkerSetupHookKeyName) + ":" + job_id_hex + ":",
-            true,
-            nullptr);
+    kv_manager_.Del("fun", "RemoteFunction:" + job_id_hex + ":", true, nullptr);
+    kv_manager_.Del("fun", "ActorClass:" + job_id_hex + ":", true, nullptr);
+    kv_manager_.Del("fun",
+                    std::string(kWorkerSetupHookKeyName) + ":" + job_id_hex + ":",
+                    true,
+                    nullptr);
   }
 
   // Handler for internal KV
-  InternalKVInterface &kv_;
+  GcsInternalKVManager &kv_manager_;
 
   // Counter to check whether the job has finished or not.
   // A job is defined to be in finished status if

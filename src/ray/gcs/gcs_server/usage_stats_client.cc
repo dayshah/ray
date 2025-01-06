@@ -19,10 +19,13 @@ namespace gcs {
 UsageStatsClient::UsageStatsClient(InternalKVInterface &internal_kv)
     : internal_kv_(internal_kv) {}
 
-void UsageStatsClient::RecordExtraUsageTag(usage::TagKey key, const std::string &value) {
+void UsageStatsClient::RecordExtraUsageTag(usage::TagKey key, std::string value) {
+  /// Keep in-sync with the same constants defined in usage_constants.py
+  static const std::string kUsageStatsNamespace = "usage_stats";
+  static const std::string kExtraUsageTagPrefix = "extra_usage_tag_";
   internal_kv_.Put(kUsageStatsNamespace,
                    kExtraUsageTagPrefix + absl::AsciiStrToLower(usage::TagKey_Name(key)),
-                   value,
+                   std::move(value),
                    /*overwrite=*/true,
                    [](bool added) {
                      if (!added) {

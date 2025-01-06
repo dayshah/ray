@@ -67,8 +67,7 @@ cdef extern from "ray/gcs/gcs_client/global_state_accessor.h" nogil:
 
 cdef extern from * namespace "ray::gcs" nogil:
     """
-    #include <thread>
-    #include "ray/gcs/gcs_server/store_client_kv.h"
+    #include "ray/gcs/store_client/redis_store_client.h"
     namespace ray {
     namespace gcs {
 
@@ -80,44 +79,47 @@ cdef extern from * namespace "ray::gcs" nogil:
                          const std::string& config,
                          const std::string& key,
                          std::string* data) {
-      // Logging default value see class `RayLog`.
-      InitShutdownRAII ray_log_shutdown_raii(ray::RayLog::StartRayLog,
-                                             ray::RayLog::ShutDownRayLog,
-                                             "ray_init",
-                                             ray::RayLogLevel::WARNING,
-                                             /*log_filepath=*/"",
-                                             /*log_rotation_max_size=*/1ULL << 29,
-                                             /*log_rotation_file_num=*/10);
+        // Logging default value see class `RayLog`.
+        InitShutdownRAII ray_log_shutdown_raii(ray::RayLog::StartRayLog,
+                                               ray::RayLog::ShutDownRayLog,
+                                               "ray_init",
+                                               ray::RayLogLevel::WARNING,
+                                               /*log_filepath=*/"",
+                                               /*log_rotation_max_size=*/1ULL << 29,
+                                               /*log_rotation_file_num=*/10);
 
-      RedisClientOptions options(host, port, username, password, use_ssl);
+        RedisClientOptions options(host, port, username, password, use_ssl);
 
-      std::string config_list;
-      RAY_CHECK(absl::Base64Unescape(config, &config_list));
-      RayConfig::instance().initialize(config_list);
+        std::string config_list;
+        RAY_CHECK(absl::Base64Unescape(config, &config_list));
+        RayConfig::instance().initialize(config_list);
 
-      instrumented_io_context io_service;
+        instrumented_io_context io_service;
 
-      auto redis_client = std::make_shared<RedisClient>(options);
-      auto status = redis_client->Connect(io_service);
-      RAY_CHECK_OK(status) << "Failed to connect to redis.";
+        auto redis_client = std::make_shared<RedisClient>(options);
+        auto status = redis_client->Connect(io_service);
+        RAY_CHECK_OK(status) << "Failed to connect to redis.";
 
-      auto cli = std::make_unique<StoreClientInternalKV>(
-        std::make_unique<RedisStoreClient>(std::move(redis_client)), io_service);
+        auto redis_store_client = RedisStoreClient{std::move(redis_client)};
 
-      bool ret_val = false;
-      cli->Get("session", key, [&](std::optional<std::string> result) {
-        if (result.has_value()) {
-          *data = result.value();
-          ret_val = true;
-        } else {
-          RAY_LOG(INFO) << "Failed to retrieve the key " << key
-                        << " from persistent storage.";
-          ret_val = false;
-        }
-      });
-      io_service.run_for(std::chrono::milliseconds(1000));
+        bool ret_val = false;
+        RAY_CHECK_OK(redis_store_client.AsyncGet(
+            TablePrefix_Name(TablePrefix::KV),
+            "@namespace_session:" + key,
+            {[&](ray::Status, std::optional<std::string> result) {
+                if (result.has_value()) {
+                    *data = std::move(result.value());
+                    ret_val = true;
+                } else {
+                    RAY_LOG(INFO) << "Failed to retrieve the key " << key
+                                    << " from persistent storage.";
+                    ret_val = false;
+                }
+            },
+            io_service}));
+        io_service.run_for(std::chrono::milliseconds(1000));
 
-      return ret_val;
+        return ret_val;
     }
 
     }

@@ -18,7 +18,6 @@
 
 #include "gtest/gtest.h"
 #include "ray/common/test_util.h"
-#include "ray/gcs/gcs_server/store_client_kv.h"
 #include "ray/gcs/store_client/in_memory_store_client.h"
 #include "ray/gcs/store_client/redis_store_client.h"
 
@@ -36,11 +35,13 @@ class GcsKVManagerTest : public ::testing::TestWithParam<std::string> {
     if (GetParam() == "redis") {
       auto client = std::make_shared<ray::gcs::RedisClient>(redis_client_options);
       RAY_CHECK_OK(client->Connect(io_service));
-      kv_instance = std::make_unique<ray::gcs::StoreClientInternalKV>(
-          std::make_unique<ray::gcs::RedisStoreClient>(client), io_service);
+      kv_manager = std::make_unique<ray::gcs::GcsInternalKVManager>(
+          std::make_unique<ray::gcs::RedisStoreClient>(client),
+          io_service,
+          kRayletConfig);
     } else if (GetParam() == "memory") {
-      kv_instance = std::make_unique<ray::gcs::StoreClientInternalKV>(
-          std::make_unique<ray::gcs::InMemoryStoreClient>(), io_service);
+      kv_manager = std::make_unique<ray::gcs::GcsInternalKVManager>(
+          std::make_unique<ray::gcs::InMemoryStoreClient>(), io_service, kRayletConfig);
     }
   }
 
@@ -48,45 +49,43 @@ class GcsKVManagerTest : public ::testing::TestWithParam<std::string> {
     io_service.stop();
     thread_io_service->join();
     redis_client.reset();
-    kv_instance.reset();
+    kv_manager.reset();
   }
 
   std::unique_ptr<ray::gcs::RedisClient> redis_client;
   std::unique_ptr<std::thread> thread_io_service;
   instrumented_io_context io_service;
-  std::unique_ptr<ray::gcs::InternalKVInterface> kv_instance;
+  std::unique_ptr<ray::gcs::GcsInternalKVManager> kv_manager;
+
+  static constexpr auto kRayletConfig = "raylet_config_list";
 };
 
 TEST_P(GcsKVManagerTest, TestInternalKV) {
-  kv_instance->Get("N1", "A", [](auto b) { ASSERT_FALSE(b.has_value()); });
-  kv_instance->Put("N1", "A", "B", false, [](auto b) { ASSERT_TRUE(b); });
-  kv_instance->Put("N1", "A", "C", false, [](auto b) { ASSERT_FALSE(b); });
-  kv_instance->Get("N1", "A", [](auto b) { ASSERT_EQ("B", *b); });
-  kv_instance->Put("N1", "A", "C", true, [](auto b) { ASSERT_FALSE(b); });
-  kv_instance->Get("N1", "A", [](auto b) { ASSERT_EQ("C", *b); });
-  kv_instance->Put("N1", "A_1", "B", false, [](auto b) { ASSERT_TRUE(b); });
-  kv_instance->Put("N1", "A_2", "C", false, [](auto b) { ASSERT_TRUE(b); });
-  kv_instance->Put("N1", "A_3", "C", false, [](auto b) { ASSERT_TRUE(b); });
-  kv_instance->Keys("N1", "A_", [](std::vector<std::string> keys) {
-    auto expected = std::set<std::string>{"A_1", "A_2", "A_3"};
-    ASSERT_EQ(expected, std::set<std::string>(keys.begin(), keys.end()));
-  });
-  kv_instance->Get("N2", "A_1", [](auto b) { ASSERT_FALSE(b.has_value()); });
-  kv_instance->Get("N1", "A_1", [](auto b) { ASSERT_TRUE(b.has_value()); });
-  kv_instance->MultiGet("N1", {"A_1", "A_2", "A_3"}, [](auto b) {
+  kv_manager->Get("N1", "A", [](auto b) { ASSERT_FALSE(b.has_value()); });
+  kv_manager->Put("N1", "A", "B", false, [](auto b) { ASSERT_TRUE(b); });
+  kv_manager->Put("N1", "A", "C", false, [](auto b) { ASSERT_FALSE(b); });
+  kv_manager->Get("N1", "A", [](auto b) { ASSERT_EQ("B", *b); });
+  kv_manager->Put("N1", "A", "C", true, [](auto b) { ASSERT_FALSE(b); });
+  kv_manager->Get("N1", "A", [](auto b) { ASSERT_EQ("C", *b); });
+  kv_manager->Put("N1", "A_1", "B", false, [](auto b) { ASSERT_TRUE(b); });
+  kv_manager->Put("N1", "A_2", "C", false, [](auto b) { ASSERT_TRUE(b); });
+  kv_manager->Put("N1", "A_3", "C", false, [](auto b) { ASSERT_TRUE(b); });
+  kv_manager->Get("N2", "A_1", [](auto b) { ASSERT_FALSE(b.has_value()); });
+  kv_manager->Get("N1", "A_1", [](auto b) { ASSERT_TRUE(b.has_value()); });
+  kv_manager->MultiGet("N1", {"A_1", "A_2", "A_3"}, [](auto b) {
     ASSERT_EQ(3, b.size());
     ASSERT_EQ("B", b["A_1"]);
     ASSERT_EQ("C", b["A_2"]);
     ASSERT_EQ("C", b["A_3"]);
   });
   // MultiGet with empty keys.
-  kv_instance->MultiGet("N1", {}, [](auto b) { ASSERT_EQ(0, b.size()); });
+  kv_manager->MultiGet("N1", {}, [](auto b) { ASSERT_EQ(0, b.size()); });
   // MultiGet with non-existent keys.
-  kv_instance->MultiGet("N1", {"A_4", "A_5"}, [](auto b) { ASSERT_EQ(0, b.size()); });
+  kv_manager->MultiGet("N1", {"A_4", "A_5"}, [](auto b) { ASSERT_EQ(0, b.size()); });
   {
     // Delete by prefix are two steps in redis mode, so we need sync here.
     std::promise<void> p;
-    kv_instance->Del("N1", "A_", true, [&p](auto b) {
+    kv_manager->DelByPrefix("N1", "A_", [&p](auto b) {
       ASSERT_EQ(3, b);
       p.set_value();
     });
@@ -95,7 +94,7 @@ TEST_P(GcsKVManagerTest, TestInternalKV) {
   {
     // Delete by prefix are two steps in redis mode, so we need sync here.
     std::promise<void> p;
-    kv_instance->Del("NX", "A_", true, [&p](auto b) {
+    kv_manager->DelByPrefix("NX", "A_", [&p](auto b) {
       ASSERT_EQ(0, b);
       p.set_value();
     });
@@ -105,16 +104,27 @@ TEST_P(GcsKVManagerTest, TestInternalKV) {
   {
     // Make sure the last cb is called.
     std::promise<void> p;
-    kv_instance->Get("N1", "A_1", [&p](auto b) {
+    kv_manager->Get("N1", "A_1", [&p](auto b) {
       ASSERT_FALSE(b.has_value());
       p.set_value();
     });
     p.get_future().get();
   }
   // Check the keys are deleted.
-  kv_instance->MultiGet(
+  kv_manager->MultiGet(
       "N1", {"A_1", "A_2", "A_3"}, [](auto b) { ASSERT_EQ(0, b.size()); });
 }
+
+TEST_P(GcsKVManagerTest, TestGcsKvManagerInternalConfig) {
+  ray::rpc::GetInternalConfigRequest request;
+  ray::rpc::GetInternalConfigReply reply;
+  auto send_reply_callback =
+      [](ray::Status status, std::function<void()> f1, std::function<void()> f2) {};
+  kv_manager->HandleGetInternalConfig(request, &reply, send_reply_callback);
+  EXPECT_EQ(reply.config(), kRayletConfig);
+}
+
+// TODO(dayshah): Add tests for HandleInternalKV* functions.
 
 INSTANTIATE_TEST_SUITE_P(GcsKVManagerTestFixture,
                          GcsKVManagerTest,

@@ -14,8 +14,6 @@
 
 #pragma once
 
-#include <memory>
-
 #include "ray/gcs/gcs_server/gcs_kv_manager.h"
 #include "src/ray/protobuf/usage.pb.h"
 
@@ -29,16 +27,12 @@ class UsageStatsClient {
   ///
   /// \param key The tag key which MUST be a registered TagKey in usage_lib.py.
   /// \param value The tag value.
-  void RecordExtraUsageTag(usage::TagKey key, const std::string &value);
+  void RecordExtraUsageTag(usage::TagKey key, std::string value);
 
   // Report a monotonically increasing counter.
   void RecordExtraUsageCounter(usage::TagKey key, int64_t counter);
 
  private:
-  /// Kee in-sync with the same constants defined in usage_constants.py
-  static constexpr char kExtraUsageTagPrefix[] = "extra_usage_tag_";
-  static constexpr char kUsageStatsNamespace[] = "usage_stats";
-
   ray::gcs::InternalKVInterface &internal_kv_;
 };
 }  // namespace gcs

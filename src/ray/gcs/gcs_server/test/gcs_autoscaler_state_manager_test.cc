@@ -20,7 +20,6 @@
 #include "ray/common/asio/instrumented_io_context.h"
 #include "ray/gcs/gcs_server/test/gcs_server_test_util.h"
 #include "ray/gcs/test/gcs_test_util.h"
-#include "ray/gcs/gcs_server/store_client_kv.h"
 #include "ray/raylet/scheduling/cluster_resource_manager.h"
 #include "mock/ray/gcs/gcs_server/gcs_placement_group_manager.h"
 #include "mock/ray/gcs/gcs_server/gcs_node_manager.h"
@@ -66,9 +65,7 @@ class GcsAutoscalerStateManagerTest : public ::testing::Test {
     cluster_resource_manager_ = std::make_unique<ClusterResourceManager>(io_service_);
     gcs_node_manager_ = std::make_shared<MockGcsNodeManager>();
     kv_manager_ = std::make_unique<GcsInternalKVManager>(
-        std::make_unique<StoreClientInternalKV>(std::make_unique<MockStoreClient>(),
-                                                io_service_),
-        kRayletConfig);
+        std::make_unique<MockStoreClient>(), io_service_, kRayletConfig);
     function_manager_ = std::make_unique<GcsFunctionManager>(kv_manager_->GetInstance());
     runtime_env_manager_ = std::make_unique<RuntimeEnvManager>(
         [](const std::string &, std::function<void(bool)>) {});
@@ -834,18 +831,6 @@ TEST_F(GcsAutoscalerStateManagerTest, TestIdleTime) {
                        /*available*/ {},
                        rpc::autoscaler::NodeStatus::DEAD);
   }
-}
-
-TEST_F(GcsAutoscalerStateManagerTest, TestGcsKvManagerInternalConfig) {
-  // This is really a test for GcsKvManager. However gcs_kv_manager_test.cc is a larger
-  // misnomer - it does not test that class at all; it only tests StoreClientInternalKV.
-  // We temporarily put this test here.
-  rpc::GetInternalConfigRequest request;
-  rpc::GetInternalConfigReply reply;
-  auto send_reply_callback =
-      [](ray::Status status, std::function<void()> f1, std::function<void()> f2) {};
-  kv_manager_->HandleGetInternalConfig(request, &reply, send_reply_callback);
-  EXPECT_EQ(reply.config(), kRayletConfig);
 }
 
 }  // namespace gcs

@@ -68,7 +68,6 @@ schema = {
         "total_failed": {"type": "integer"},
         "seq_number": {"type": "integer"},
         "extra_usage_tags": {"type": ["null", "object"]},
-        "total_num_nodes": {"type": ["null", "integer"]},
         "total_num_running_jobs": {"type": ["null", "integer"]},
     },
     "additionalProperties": False,
@@ -883,27 +882,6 @@ def test_usage_lib_get_total_num_running_jobs_to_report(
     ray.shutdown()
 
 
-def test_usage_lib_get_total_num_nodes_to_report(ray_start_cluster, reset_usage_stats):
-    cluster = ray_start_cluster
-    cluster.add_node(num_cpus=1)
-    ray.init(address=cluster.address)
-    worker_node = cluster.add_node(num_cpus=2)
-    assert (
-        ray_usage_lib.get_total_num_nodes_to_report(
-            ray.experimental.internal_kv.internal_kv_get_gcs_client()
-        )
-        == 2
-    )
-    cluster.remove_node(worker_node)
-    # Make sure only alive nodes are counted
-    assert (
-        ray_usage_lib.get_total_num_nodes_to_report(
-            ray.experimental.internal_kv.internal_kv_get_gcs_client()
-        )
-        == 1
-    )
-
-
 @pytest.mark.parametrize("enable_v2", [True, False])
 def test_usage_lib_get_cluster_status_to_report(
     enable_v2, shutdown_only, reset_usage_stats
@@ -1233,7 +1211,6 @@ provider:
             expected_payload["air_entrypoint"] = "Tuner.fit"
             expected_payload["air_storage_configuration"] = "local"
         assert payload["extra_usage_tags"] == expected_payload
-        assert payload["total_num_nodes"] == 1
         assert payload["total_num_running_jobs"] == 1
         if os.environ.get("RAY_MINIMAL") == "1":
             assert set(payload["library_usages"]) == set()
@@ -1543,7 +1520,6 @@ def test_usage_stats_tags(
 
         def verify():
             tags = read_file(temp_dir, "usage_stats")["extra_usage_tags"]
-            num_nodes = read_file(temp_dir, "usage_stats")["total_num_nodes"]
             assert tags == {
                 "key": "val",
                 "key2": "val2",
@@ -1558,7 +1534,6 @@ def test_usage_stats_tags(
                 "num_normal_tasks": "0",
                 "num_drivers": "1",
             }
-            assert num_nodes == 2
             return True
 
         wait_for_condition(verify)
@@ -1578,7 +1553,7 @@ def test_usage_stats_gcs_query_failure(
 
         ray.init(address=cluster.address)
         assert (
-            ray_usage_lib.get_total_num_nodes_to_report(
+            ray_usage_lib.get_library_usages_to_report(
                 ray.experimental.internal_kv.internal_kv_get_gcs_client(), timeout=1
             )
             is None

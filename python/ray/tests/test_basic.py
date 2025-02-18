@@ -11,7 +11,6 @@ import pytest
 import ray
 import ray.cluster_utils
 from ray._private.test_utils import (
-    SignalActor,
     client_test_enabled,
     run_string_as_driver,
 )
@@ -713,45 +712,6 @@ def test_ray_options(shutdown_only):
     )
 
     assert memory_available_without_options < memory_available_with_options
-
-
-@pytest.mark.skipif(client_test_enabled(), reason="internal api")
-@pytest.mark.parametrize(
-    "ray_start_cluster_head",
-    [
-        {
-            "num_cpus": 0,
-            "object_store_memory": 75 * 1024 * 1024,
-            "_system_config": {"automatic_object_spilling_enabled": False},
-        }
-    ],
-    indirect=True,
-)
-def test_fetch_local(ray_start_cluster_head):
-    cluster = ray_start_cluster_head
-    cluster.add_node(num_cpus=2, object_store_memory=75 * 1024 * 1024)
-    signal_actor = SignalActor.remote()
-
-    @ray.remote
-    def put():
-        ray.wait([signal_actor.wait.remote()])
-        return bytearray(40 * 1024 * 1024)  # 40 MB data
-
-    local_ref = ray.put(bytearray(40 * 1024 * 1024))
-    remote_ref = put.remote()
-    # Data is not ready in any node
-    (ready_ref, remaining_ref) = ray.wait([remote_ref], timeout=2, fetch_local=False)
-    assert (0, 1) == (len(ready_ref), len(remaining_ref))
-    ray.wait([signal_actor.send.remote()])
-
-    # Data is ready in some node, but not local node.
-    (ready_ref, remaining_ref) = ray.wait([remote_ref], fetch_local=False)
-    assert (1, 0) == (len(ready_ref), len(remaining_ref))
-    (ready_ref, remaining_ref) = ray.wait([remote_ref], timeout=2, fetch_local=True)
-    assert (0, 1) == (len(ready_ref), len(remaining_ref))
-    del local_ref
-    (ready_ref, remaining_ref) = ray.wait([remote_ref], fetch_local=True)
-    assert (1, 0) == (len(ready_ref), len(remaining_ref))
 
 
 def test_nested_functions(ray_start_shared_local_modes):

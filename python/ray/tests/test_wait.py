@@ -8,6 +8,7 @@ import sys
 import os
 
 from ray._private.test_utils import client_test_enabled
+from ray._private.test_utils import SignalActor
 
 
 if client_test_enabled():
@@ -79,6 +80,45 @@ def test_wait_timing(ray_start_2_cpus):
     assert len(not_ready) == 1
 
 
+@pytest.mark.skipif(client_test_enabled(), reason="internal api")
+@pytest.mark.parametrize(
+    "ray_start_cluster_head",
+    [
+        {
+            "num_cpus": 0,
+            "object_store_memory": 75 * 1024 * 1024,
+            "_system_config": {"automatic_object_spilling_enabled": False},
+        }
+    ],
+    indirect=True,
+)
+def test_fetch_local(ray_start_cluster_head):
+    cluster = ray_start_cluster_head
+    cluster.add_node(num_cpus=2, object_store_memory=75 * 1024 * 1024)
+    signal_actor = SignalActor.remote()
+
+    @ray.remote
+    def put():
+        ray.wait([signal_actor.wait.remote()])
+        return bytearray(40 * 1024 * 1024)  # 40 MB data
+
+    local_ref = ray.put(bytearray(40 * 1024 * 1024))
+    remote_ref = put.remote()
+    # Data is not ready in any node
+    (ready_ref, remaining_ref) = ray.wait([remote_ref], timeout=2, fetch_local=False)
+    assert (0, 1) == (len(ready_ref), len(remaining_ref))
+    ray.wait([signal_actor.send.remote()])
+
+    # Data is ready in some node, but not local node.
+    (ready_ref, remaining_ref) = ray.wait([remote_ref], fetch_local=False)
+    assert (1, 0) == (len(ready_ref), len(remaining_ref))
+    (ready_ref, remaining_ref) = ray.wait([remote_ref], timeout=2, fetch_local=True)
+    assert (0, 1) == (len(ready_ref), len(remaining_ref))
+    del local_ref
+    (ready_ref, remaining_ref) = ray.wait([remote_ref], fetch_local=True)
+    assert (1, 0) == (len(ready_ref), len(remaining_ref))
+
+
 @pytest.mark.skipif(client_test_enabled(), reason="util not available with ray client")
 def test_wait_always_fetch_local(monkeypatch, ray_start_cluster):
     monkeypatch.setenv("RAY_scheduler_report_pinned_bytes_only", "false")
@@ -89,7 +129,6 @@ def test_wait_always_fetch_local(monkeypatch, ray_start_cluster):
 
     @ray.remote(num_cpus=1)
     def return_large_object():
-        # 100mb so will spill on worker, but not once on head
         return np.zeros(100 * 1024 * 1024, dtype=np.uint8)
 
     @ray.remote(num_cpus=0)

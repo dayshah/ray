@@ -1,0 +1,15 @@
+diff -u protobuf/protobuf_deps.bzl
+--- protobuf/protobuf_deps.bzl
++++ protobuf/protobuf_deps.bzl
+@@ -56,6 +56,11 @@
+                 "https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.xz",
+                 "https://zlib.net/zlib-1.2.13.tar.xz",
+             ],
++            patches = [
++                # this is the third zlib dependency: prometheus-cpp and boost use it as well.
++                # but since this is last, we patch here
++                "@com_github_ray_project_ray//thirdparty/patches:zlib-fdopen.patch",
++            ]
+         )
+ 
+     if not native.existing_rule("jsoncpp"):

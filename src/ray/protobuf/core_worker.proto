@@ -456,11 +456,14 @@ message RegisterMutableObjectReaderReply {
 
 service CoreWorkerService {
   // Notify core worker GCS has restarted.
+  // Easy to handle failures
   rpc RayletNotifyGCSRestart(RayletNotifyGCSRestartRequest)
       returns (RayletNotifyGCSRestartReply);
   // Push a task directly to this worker from another.
+  // Failure: Handles failures
   rpc PushTask(PushTaskRequest) returns (PushTaskReply);
   // Reply from raylet that wait for actor call args has completed.
+  // Failure: Need to handle - idempotent
   rpc ActorCallArgWaitComplete(ActorCallArgWaitCompleteRequest)
       returns (ActorCallArgWaitCompleteReply);
   // Ask the object's owner about the object's current status.
@@ -468,6 +471,7 @@ service CoreWorkerService {
   // Wait for the actor's owner to decide that the actor has no references.
   // Replying to this message indicates that the client should force-kill the
   // actor process, if still alive and mark the actor as permanently dead.
+  // Failures: Need to handle
   rpc WaitForActorRefDeleted(WaitForActorRefDeletedRequest)
       returns (WaitForActorRefDeletedReply);
   /// The long polling request sent to the core worker for pubsub operations.
@@ -475,9 +479,10 @@ service CoreWorkerService {
   /// the caller (subscriber).
   rpc PubsubLongPolling(PubsubLongPollingRequest) returns (PubsubLongPollingReply);
   // The RPC to report the intermediate task return to the caller.
+  // Failure: Handles failures
   rpc ReportGeneratorItemReturns(ReportGeneratorItemReturnsRequest)
       returns (ReportGeneratorItemReturnsReply);
-  /// The pubsub command batch request used by the subscriber.
+  // The pubsub command batch request used by the subscriber.
   rpc PubsubCommandBatch(PubsubCommandBatchRequest) returns (PubsubCommandBatchReply);
   // Update the batched object location information to the ownership-based object
   // directory.
@@ -485,13 +490,17 @@ service CoreWorkerService {
   rpc UpdateObjectLocationBatch(UpdateObjectLocationBatchRequest)
       returns (UpdateObjectLocationBatchReply);
   // Get object locations from the ownership-based object directory.
+  // Failure: Idempotent, should retry.
   rpc GetObjectLocationsOwner(GetObjectLocationsOwnerRequest)
       returns (GetObjectLocationsOwnerReply);
   // Request that the worker shut down without completing outstanding work.
+  // Failure: Need to retry
   rpc KillActor(KillActorRequest) returns (KillActorReply);
   // Request that a worker cancels a task.
+  // Failure: Has failure behavior
   rpc CancelTask(CancelTaskRequest) returns (CancelTaskReply);
   // Request for a worker to issue a cancellation.
+  // Failure: need failure behavior
   rpc RemoteCancelTask(RemoteCancelTaskRequest) returns (RemoteCancelTaskReply);
   // Get metrics from core workers.
   rpc GetCoreWorkerStats(GetCoreWorkerStatsRequest) returns (GetCoreWorkerStatsReply);
@@ -515,6 +524,7 @@ service CoreWorkerService {
   rpc AssignObjectOwner(AssignObjectOwnerRequest) returns (AssignObjectOwnerReply);
   // Get the number of pending tasks.
   rpc NumPendingTasks(NumPendingTasksRequest) returns (NumPendingTasksReply);
+  // Failure: Doesn't handle
   rpc RegisterMutableObjectReader(RegisterMutableObjectReaderRequest)
       returns (RegisterMutableObjectReaderReply);
 }

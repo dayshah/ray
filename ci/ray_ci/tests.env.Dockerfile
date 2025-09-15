@@ -9,6 +9,7 @@ ARG RAY_INSTALL_MASK=
 
 ENV CC=clang
 ENV CXX=clang++-12
+# Disable building C++ API to speed up CI, it's not tested in this container.
 ENV RAY_DISABLE_EXTRA_CPP=1
 
 RUN mkdir /rayci

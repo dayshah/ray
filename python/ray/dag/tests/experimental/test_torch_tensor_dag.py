@@ -266,6 +266,7 @@ def test_torch_tensor_nccl(
         shape = (10 * (i + 1),)
         ref = compiled_dag.execute(i, shape=shape, dtype=dtype)
         assert ray.get(ref) == (i, shape, dtype)
+    compiled_dag.teardown()
 
 
 @pytest.mark.skipif(not USE_GPU, reason="Skipping GPU Test")
@@ -1068,6 +1069,8 @@ def test_torch_tensor_nccl_static_shape(ray_start_regular):
 
     with pytest.raises(RayChannelError):
         ref = compiled_dag.execute(i, shape=(21,), dtype=dtype)
+
+    compiled_dag.teardown()
 
 
 @pytest.mark.skipif(not USE_GPU, reason="Skipping GPU Test")
